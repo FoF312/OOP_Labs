@@ -1,35 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 public class Angle
 {
-    private double radians;
+    private double radians; // raw stored radians (may be outside [0,2π))
     private const double TwoPi = 2 * Math.PI;
+    private const double Eps = 1e-9;
 
-    // Создает новый угол из радиан или градусов
-    public Angle(double value = 0, bool isRadians = true)
+    public Angle(double value = 0, bool isRadians = true, bool normalize = true)
     {
         if (isRadians)
-            radians = Normalize(value);
+            radians = normalize ? Normalize(value) : value;
         else
-            radians = Normalize(DegreesToRadians(value));
+            radians = normalize ? Normalize(DegreesToRadians(value)) : DegreesToRadians(value);
     }
 
-    // Угол в радианах (автоматически нормализуется)
+    // Raw radians (как сохранено)
+    public double RawRadians => radians;
+
+    // Нормализованное значение в [0, 2π)
+    public double NormalizedRadians => Normalize(radians);
+
     public double Radians
     {
         get => radians;
-        set => radians = Normalize(value);
+        set => radians = value;
     }
 
-    // Угол в градусах (автоматически конвертируется и нормализуется)
     public double Degrees
     {
         get => RadiansToDegrees(radians);
-        set => radians = Normalize(DegreesToRadians(value));
+        set => radians = DegreesToRadians(value);
     }
 
-    // Нормализует угол в диапазон [0, 2π)
+    // Нормализация вспомогательная
     private double Normalize(double rad)
     {
         double result = rad % TwoPi;
@@ -41,12 +46,12 @@ public class Angle
     private double DegreesToRadians(double deg) => deg * Math.PI / 180.0;
     private double RadiansToDegrees(double rad) => rad * 180.0 / Math.PI;
 
-    // Преобразование в другие типы
     public float ToFloat() => (float)radians;
     public int ToInt() => (int)Math.Round(radians);
-    
-    // Строковые представления
+
+    // ToString показывает фактическое значение.
     public override string ToString() => $"{Degrees:0.0}°";
+
     public string ToString(string format) => format.ToLower() switch
     {
         "rad" or "radians" => $"{radians:0.00} rad",
@@ -54,42 +59,42 @@ public class Angle
         _ => ToString()
     };
 
-    // Реализация repr (более детальное представление)
-    public string ToReprString() => $"Angle(radians={radians:0.0000}, degrees={Degrees:0.00})";
+    public string ToReprString() =>
+        $"Angle(raw_radians={radians:0.0000}, normalized={NormalizedRadians:0.0000}, degrees={Degrees:0.00}°)";
 
-    // Проверяет равенство углов с учетом нормализации
-    public override bool Equals(object? obj) => obj is Angle other && Math.Abs(radians - other.radians) < 0.0001;
-    public override int GetHashCode() => radians.GetHashCode();
+    // Equals сравнивает по нормализованному значению (углы эквивалентны по модулю 2π)
+    public override bool Equals(object? obj) =>
+        obj is Angle other && Math.Abs(NormalizedRadians - other.NormalizedRadians) < Eps;
 
-    // Операторы сравнения
+    public override int GetHashCode() => NormalizedRadians.GetHashCode();
+
     public static bool operator ==(Angle? a, Angle? b) =>
         ReferenceEquals(a, b) || (a is not null && a.Equals(b));
     public static bool operator !=(Angle? a, Angle? b) => !(a == b);
-    public static bool operator <(Angle a, Angle b) => a.radians < b.radians;
-    public static bool operator >(Angle a, Angle b) => a.radians > b.radians;
-    public static bool operator <=(Angle a, Angle b) => a.radians <= b.radians;
-    public static bool operator >=(Angle a, Angle b) => a.radians >= b.radians;
+    public static bool operator <(Angle a, Angle b) => a.NormalizedRadians < b.NormalizedRadians;
+    public static bool operator >(Angle a, Angle b) => a.NormalizedRadians > b.NormalizedRadians;
+    public static bool operator <=(Angle a, Angle b) => a.NormalizedRadians <= b.NormalizedRadians;
+    public static bool operator >=(Angle a, Angle b) => a.NormalizedRadians >= b.NormalizedRadians;
 
-    // Арифметические операторы
-    public static Angle operator +(Angle a, Angle b) => new Angle(a.radians + b.radians);
-    public static Angle operator +(Angle a, double b) => new Angle(a.radians + b);
-    public static Angle operator +(Angle a, int b) => new Angle(a.radians + b);
-    public static Angle operator +(double a, Angle b) => new Angle(a + b.radians);
-    public static Angle operator +(int a, Angle b) => new Angle(a + b.radians);
-    
-    public static Angle operator -(Angle a, Angle b) => new Angle(a.radians - b.radians);
-    public static Angle operator -(Angle a, double b) => new Angle(a.radians - b);
-    public static Angle operator -(Angle a, int b) => new Angle(a.radians - b);
-    
-    public static Angle operator *(Angle a, double num) => new Angle(a.radians * num);
-    public static Angle operator *(Angle a, int num) => new Angle(a.radians * num);
-    public static Angle operator *(double num, Angle a) => new Angle(a.radians * num);
-    public static Angle operator *(int num, Angle a) => new Angle(a.radians * num);
-    
-    public static Angle operator /(Angle a, double num) => new Angle(a.radians / num);
-    public static Angle operator /(Angle a, int num) => new Angle(a.radians / num);
+    // Арифметика — сохраняем "сырые" суммы/произведения
+    public static Angle operator +(Angle a, Angle b) => new Angle(a.radians + b.radians, true, false);
+    public static Angle operator +(Angle a, double b) => new Angle(a.radians + b, true, false);
+    public static Angle operator +(Angle a, int b) => new Angle(a.radians + b, true, false);
+    public static Angle operator +(double a, Angle b) => new Angle(a + b.radians, true, false);
+    public static Angle operator +(int a, Angle b) => new Angle(a + b.radians, true, false);
 
-    // Явные преобразования
+    public static Angle operator -(Angle a, Angle b) => new Angle(a.radians - b.radians, true, false);
+    public static Angle operator -(Angle a, double b) => new Angle(a.radians - b, true, false);
+    public static Angle operator -(Angle a, int b) => new Angle(a.radians - b, true, false);
+
+    public static Angle operator *(Angle a, double num) => new Angle(a.radians * num, true, false);
+    public static Angle operator *(Angle a, int num) => new Angle(a.radians * num, true, false);
+    public static Angle operator *(double num, Angle a) => new Angle(a.radians * num, true, false);
+    public static Angle operator *(int num, Angle a) => new Angle(a.radians * num, true, false);
+
+    public static Angle operator /(Angle a, double num) => new Angle(a.radians / num, true, false);
+    public static Angle operator /(Angle a, int num) => new Angle(a.radians / num, true, false);
+
     public static explicit operator float(Angle angle) => angle.ToFloat();
     public static explicit operator int(Angle angle) => angle.ToInt();
     public static explicit operator double(Angle angle) => angle.radians;
@@ -102,7 +107,9 @@ public class AngleRange
     public bool IncludeStart { get; }
     public bool IncludeEnd { get; }
 
-    // Конструкторы
+    private const double TwoPi = 2 * Math.PI;
+    private const double Eps = 1e-9;
+
     public AngleRange(Angle start, Angle end, bool includeStart = true, bool includeEnd = true)
     {
         Start = start;
@@ -111,145 +118,166 @@ public class AngleRange
         IncludeEnd = includeEnd;
     }
 
-    public AngleRange(double start, double end, bool isRadians = true, 
+    public AngleRange(double start, double end, bool isRadians = true,
                      bool includeStart = true, bool includeEnd = true)
-        : this(new Angle(start, isRadians), new Angle(end, isRadians), includeStart, includeEnd)
+        : this(new Angle(start, isRadians, false), new Angle(end, isRadians, false), includeStart, includeEnd)
     {
     }
 
-    // Длина промежутка (через свойство и метод)
-    public double Length => GetLength();
+    // Длина промежутка вдоль положительного направления от Start до End.
     public double GetLength()
     {
-        if (Start.Radians <= End.Radians)
-            return End.Radians - Start.Radians;
-        else
-            return (2 * Math.PI - Start.Radians) + End.Radians;
+        double delta = End.RawRadians - Start.RawRadians;
+        // Подтягиваем вверх, чтобы delta >= 0, но не уменьшаем (если End выше Start — оставляем)
+        while (delta < 0) delta += TwoPi;
+        return delta;
     }
 
-    // Проверка принадлежности
+    // Синоним‑свойство для удобства (используется в форматировании/фильтрации)
+    public double Length => GetLength();
+
+    // Проверка принадлежности одного угла к промежутку (учитываем \pm 2π сдвиги).
     public bool Contains(Angle angle)
     {
-        double angleRad = angle.Radians;
-        double startRad = Start.Radians;
-        double endRad = End.Radians;
+        double s = Start.RawRadians;
+        double e = s + GetLength(); // эффективный правый конец в сырой шкале (>= s)
+        double x = angle.RawRadians;
 
-        if (startRad <= endRad)
-        {
-            bool afterStart = IncludeStart ? angleRad >= startRad : angleRad > startRad;
-            bool beforeEnd = IncludeEnd ? angleRad <= endRad : angleRad < endRad;
-            return afterStart && beforeEnd;
-        }
-        else
-        {
-            bool afterStart = IncludeStart ? angleRad >= startRad : angleRad > startRad;
-            bool beforeEnd = IncludeEnd ? angleRad <= endRad : angleRad < endRad;
-            return afterStart || beforeEnd;
-        }
+        // ищем целое m такое, что x + m*2π ∈ [s, e]
+        double mMin = Math.Ceiling((s - x - Eps) / TwoPi);
+        double mMax = Math.Floor((e - x + Eps) / TwoPi);
+        if (mMin > mMax) return false;
+
+        // возьмём m = mMin как кандидат
+        double sx = x + mMin * TwoPi;
+        if (Math.Abs(sx - s) < Eps) return IncludeStart;           // попадает ровно в левую границу
+        if (Math.Abs(sx - e) < Eps) return IncludeEnd;             // ровно в правую границу
+        if (sx > s + Eps && sx < e - Eps) return true;             // строго внутри
+        // если подходят другие m (в диапазоне), тогда обязательно внутри
+        if (mMax > mMin) return true;
+        return false;
     }
 
-    // Проверка принадлежности другого диапазона (защита от null)
+    // Проверка принадлежности другого диапазона (ищем сдвиг m*2π, при котором другой полностью внутри)
     public bool Contains(AngleRange? other)
     {
         if (other is null) return false;
-        return Contains(other.Start) && Contains(other.End);
-    }
 
-    // Сравнение промежутков (безопасно для null)
-    public override bool Equals(object? obj) => obj is AngleRange other &&
-        Start == other.Start && End == other.End &&
-        IncludeStart == other.IncludeStart && IncludeEnd == other.IncludeEnd;
+        double s = this.Start.RawRadians;
+        double e = s + this.GetLength();
+        double os = other.Start.RawRadians;
+        double oe = os + other.GetLength();
 
-    public override int GetHashCode() => HashCode.Combine(Start, End, IncludeStart, IncludeEnd);
+        // нужно найти m такое, что s <= os + m*2π  и  oe + m*2π <= e
+        double mMin = Math.Ceiling((s - os - Eps) / TwoPi);
+        double mMax = Math.Floor((e - oe + Eps) / TwoPi);
+        if (mMin > mMax) return false;
 
-    public static bool operator ==(AngleRange? a, AngleRange? b) =>
-        ReferenceEquals(a, b) || (a is not null && a.Equals(b));
-    public static bool operator !=(AngleRange? a, AngleRange? b) => !(a == b);
+        // проверим граничные включения для выбранного m (берём m = mMin)
+        double shiftedStart = os + mMin * TwoPi;
+        double shiftedEnd = oe + mMin * TwoPi;
 
-    // Сравнение по длине
-    public static bool operator <(AngleRange a, AngleRange b) => a.Length < b.Length;
-    public static bool operator >(AngleRange a, AngleRange b) => a.Length > b.Length;
-    public static bool operator <=(AngleRange a, AngleRange b) => a.Length <= b.Length;
-    public static bool operator >=(AngleRange a, AngleRange b) => a.Length >= b.Length;
+        // если левый совпадает с s — проверяем IncludeStart обеих
+        if (Math.Abs(shiftedStart - s) < Eps && !(this.IncludeStart && other.IncludeStart)) return false;
+        // если правый совпадает с e — проверяем IncludeEnd обеих
+        if (Math.Abs(shiftedEnd - e) < Eps && !(this.IncludeEnd && other.IncludeEnd)) return false;
 
-    // Операции сложения и вычитания (объединение и разность)
-    public static List<AngleRange> operator +(AngleRange a, AngleRange b) => Union(a, b);
-    public static List<AngleRange> operator -(AngleRange a, AngleRange b) => Difference(a, b);
+        // если оба границы терпимы — содержится
+        if (shiftedStart > s + Eps && shiftedEnd < e - Eps) return true;
+        // если равен по длине полностью — проверяем включения обоих краёв
+        if (Math.Abs(shiftedStart - s) < Eps && Math.Abs(shiftedEnd - e) < Eps)
+            return this.IncludeStart == other.IncludeStart && this.IncludeEnd == other.IncludeEnd;
 
-    public static List<AngleRange> Union(AngleRange a, AngleRange b)
-    {
-        var result = new List<AngleRange>();
-        
-        // Простая реализация объединения
-        if (a.Overlaps(b) || a.Touches(b))
-        {
-            // Если промежутки пересекаются или соприкасаются, создаем один большой
-            double start = Math.Min(a.Start.Radians, b.Start.Radians);
-            double end = Math.Max(a.End.Radians, b.End.Radians);
-            result.Add(new AngleRange(start, end));
-        }
-        else
-        {
-            // Иначе возвращаем оба промежутка
-            result.Add(a);
-            result.Add(b);
-        }
-        
-        return result;
-    }
-
-    public static List<AngleRange> Difference(AngleRange a, AngleRange b)
-    {
-        var result = new List<AngleRange>();
-        
-        if (!a.Overlaps(b))
-        {
-            // Если не пересекаются, возвращаем первый промежуток
-            result.Add(a);
-        }
-        else
-        {
-            // Упрощенная реализация разности
-            if (a.Start.Radians < b.Start.Radians)
-            {
-                result.Add(new AngleRange(a.Start.Radians, b.Start.Radians, 
-                    a.IncludeStart, !b.IncludeStart));
-            }
-            
-            if (a.End.Radians > b.End.Radians)
-            {
-                result.Add(new AngleRange(b.End.Radians, a.End.Radians, 
-                    !b.IncludeEnd, a.IncludeEnd));
-            }
-        }
-        
-        return result.Where(r => r.Length > 0).ToList();
-    }
-
-    private bool Overlaps(AngleRange other)
-    {
-        return Contains(other.Start) || Contains(other.End) || 
-               other.Contains(Start) || other.Contains(End);
+        // остальные случаи: если попали сюда, то mMin<=mMax и нет явных нарушений — считаем, что содержится
+        return true;
     }
 
     private bool Touches(AngleRange other)
     {
-        return Math.Abs(End.Radians - other.Start.Radians) < 0.0001 ||
-               Math.Abs(Start.Radians - other.End.Radians) < 0.0001;
+        // Проверяем, совпадают ли границы с учётом сдвигов на кратные 2π
+        bool EqMod(double a, double b)
+        {
+            double k = Math.Round((a - b) / TwoPi);
+            return Math.Abs(a - (b + k * TwoPi)) < Eps;
+        }
+
+        if (EqMod(this.End.RawRadians, other.Start.RawRadians)) return true;
+        if (EqMod(this.Start.RawRadians, other.End.RawRadians)) return true;
+        return false;
     }
 
-    // Строковые представления
+    // Чёткие строковые представления с явными числовыми значениями (для удобной проверки)
     public override string ToString()
     {
         char startChar = IncludeStart ? '[' : '(';
         char endChar = IncludeEnd ? ']' : ')';
-        return $"{startChar}{Start.ToString("rad")}, {End.ToString("rad")}{endChar}";
+        // Показываем сырые радианы и градусы — удобно для тестов
+        return $"{startChar}{Start.ToString("rad")} ({Start.ToString("deg")}), {End.ToString("rad")} ({End.ToString("deg")}){endChar}";
     }
 
     public string ToReprString()
     {
         return $"AngleRange(Start={Start.ToReprString()}, End={End.ToReprString()}, " +
-               $"IncludeStart={IncludeStart}, IncludeEnd={IncludeEnd})";
+               $"IncludeStart={IncludeStart}, IncludeEnd={IncludeEnd}, Length={GetLength():0.0000})";
+    }
+
+    // Возвращает объединение двух диапазонов как список: один элемент при перекрытии/касании, иначе два (отсортированных).
+    public static List<AngleRange> Union(AngleRange a, AngleRange b)
+    {
+        if (a is null || b is null) return new List<AngleRange>();
+
+        // Если один содержит другой — возвращаем контейнер
+        if (a.Contains(b)) return new List<AngleRange> { a };
+        if (b.Contains(a)) return new List<AngleRange> { b };
+
+        double s1 = a.Start.RawRadians;
+        double e1 = s1 + a.GetLength();
+        double s2 = b.Start.RawRadians;
+        double e2 = s2 + b.GetLength();
+
+        // Попытаемся сдвинуть второй диапазон на ближайший кратный 2π, чтобы проверить перекрытие/касание.
+        int mCenter = (int)Math.Round((s1 - s2) / TwoPi);
+
+        for (int dm = -1; dm <= 1; dm++)
+        {
+            int m = mCenter + dm;
+            double s2m = s2 + m * TwoPi;
+            double e2m = e2 + m * TwoPi;
+
+            // Проверяем, не являются ли интервалы раздельными (с зазором).
+            if (!(e1 < s2m - Eps || e2m < s1 - Eps))
+            {
+                double ns = Math.Min(s1, s2m);
+                double ne = Math.Max(e1, e2m);
+
+                bool nIncludeStart;
+                if (Math.Abs(ns - s1) < Eps && Math.Abs(ns - s2m) < Eps)
+                    nIncludeStart = a.IncludeStart || b.IncludeStart;
+                else if (Math.Abs(ns - s1) < Eps)
+                    nIncludeStart = a.IncludeStart;
+                else
+                    nIncludeStart = b.IncludeStart;
+
+                bool nIncludeEnd;
+                if (Math.Abs(ne - e1) < Eps && Math.Abs(ne - e2m) < Eps)
+                    nIncludeEnd = a.IncludeEnd || b.IncludeEnd;
+                else if (Math.Abs(ne - e1) < Eps)
+                    nIncludeEnd = a.IncludeEnd;
+                else
+                    nIncludeEnd = b.IncludeEnd;
+
+                var merged = new AngleRange(new Angle(ns, true, false), new Angle(ne, true, false), nIncludeStart, nIncludeEnd);
+                return new List<AngleRange> { merged };
+            }
+        }
+
+        // Раздельные интервалы: возвращаем оба в порядке по эффективному положению (связываем b к ближайшему mCenter для сравнения порядка).
+        double s2mFinal = s2 + mCenter * TwoPi;
+
+        if (s1 <= s2mFinal)
+            return new List<AngleRange> { a, b };
+        else
+            return new List<AngleRange> { b, a };
     }
 }
 
@@ -257,67 +285,64 @@ class Program
 {
     static void Main()
     {
-        Console.WriteLine("=== Демонстрация работы классов ===");
+        // Короткий, читабельный вывод: только то, что нужно.
+        // Помощники для компактного отображения
+        string Deg(Angle a) => $"{a.Degrees:0.##}°";
+        string Rad(Angle a) => $"{a.RawRadians:0.###} rad";
+        string AngleShort(Angle a, bool showDegreesOnly = false) => showDegreesOnly ? Deg(a) : $"{Deg(a)} / {Rad(a)}";
+        string RangeShort(AngleRange r, bool showDegreesOnly = false)
+            => showDegreesOnly
+               ? $"{(r.IncludeStart ? "[" : "(")}{Deg(r.Start)} .. {Deg(r.End)}{(r.IncludeEnd ? "]" : ")")}"
+               : $"{(r.IncludeStart ? "[" : "(")}{Rad(r.Start)} .. {Rad(r.End)}{(r.IncludeEnd ? "]" : ")")}  ({r.Length:0.###} rad)";
+
+        Console.WriteLine("=== КРАТКАЯ ДЕМО-ВЫВОД ===\n");
+
+        // Создаём объекты (как раньше)
+        Angle angle1 = new Angle(Math.PI);          // radians
+        Angle angle2 = new Angle(90, false);        // degrees
+        Angle angle3 = new Angle(45, false);        // degrees
+
+        AngleRange range1 = new AngleRange(0, Math.PI);          // numeric radians (raw)
+        AngleRange range2 = new AngleRange(45, 135, false);      // degrees input -> show degrees
+        AngleRange range3 = new AngleRange(270, 90, false);      // wrap, degrees input
+
+        Console.WriteLine("-- Углы --");
+        Console.WriteLine($"angle1: {AngleShort(angle1)}");
+        Console.WriteLine($"angle2: {AngleShort(angle2, showDegreesOnly: true)}"); // был задан в градусах
+        Console.WriteLine($"angle3: {AngleShort(angle3, showDegreesOnly: true)}");
+        Console.WriteLine();
+
+        Console.WriteLine("-- Сравнения (показываем значения) --");
+        Console.WriteLine($"{AngleShort(angle1)} == {AngleShort(angle2, true)} -> {angle1 == angle2}");
+        Console.WriteLine($"{AngleShort(angle2, true)} <  {AngleShort(angle3, true)} -> {angle2 < angle3}");
+        Console.WriteLine();
+
+        Console.WriteLine("-- Промежутки (компактно) --");
+        Console.WriteLine($"range1: {RangeShort(range1)}");
+        Console.WriteLine($"range2: {RangeShort(range2, showDegreesOnly: true)}");
+        Console.WriteLine($"range3: {RangeShort(range3, showDegreesOnly: true)}");
+        Console.WriteLine();
+
+        Console.WriteLine("-- Принадлежность (компактно) --");
+        Angle testAngle = new Angle(60, false); // 60°
+        Console.WriteLine($"{AngleShort(testAngle, true)} ∈ range2? -> {range2.Contains(testAngle)}");
+        Console.WriteLine($"{RangeShort(range2, true)} ⊂ {RangeShort(range1)}? -> {range1.Contains(range2)}");
+        Console.WriteLine();
+
+        Console.WriteLine("-- Пример вложенности (показываем СЫРЫЕ значения для наглядности) --");
+        AngleRange big = new AngleRange(Math.PI / 2.0, 6 * Math.PI); // [π/2 ; 6π] 
+        AngleRange small = new AngleRange(Math.PI / 3.0, 3 * Math.PI, true, false, false); // (π/3 ; 3π)
+        // Показываем raw радианы + удобные градусы где уместно
+        Console.WriteLine($"big:   {RangeShort(big)}");
+        Console.WriteLine($"small: {RangeShort(small)}");
+        Console.WriteLine($"small ⊂ big? -> {big.Contains(small)}");
+        Console.WriteLine();
+
+        Console.WriteLine("-- Объединение / Разность (компактно) --");
+        var u = AngleRange.Union(range1, range2);
+        Console.WriteLine($"Объединение {RangeShort(range1, showDegreesOnly: true)} и {RangeShort(range2, showDegreesOnly: true)}:");
+                if (u.Count == 0) Console.WriteLine("  (пусто)");
+                else foreach (var item in u) Console.WriteLine($"  - {RangeShort(item, showDegreesOnly: true)}");
         
-        // Тестирование Angle
-        Console.WriteLine("\n--- Тестирование Angle ---");
-        Angle angle1 = new Angle(Math.PI);
-        Angle angle2 = new Angle(90, false);
-        Angle angle3 = new Angle(45, false);
-        
-        Console.WriteLine($"angle1: {angle1} | repr: {angle1.ToReprString()}");
-        Console.WriteLine($"angle2: {angle2} | repr: {angle2.ToReprString()}");
-        
-        // Преобразования
-        Console.WriteLine($"\nПреобразования angle1:");
-        Console.WriteLine($"ToFloat: {angle1.ToFloat()}");
-        Console.WriteLine($"ToInt: {angle1.ToInt()}");
-        Console.WriteLine($"Явное в double: {(double)angle1}");
-        
-        // Сравнение
-        Console.WriteLine($"\nСравнение углов:");
-        Console.WriteLine($"angle1 == angle2: {angle1 == angle2}");
-        Console.WriteLine($"angle1 > angle2: {angle1 > angle2}");
-        Console.WriteLine($"angle2 < angle3: {angle2 < angle3}");
-        
-        // Арифметика
-        Console.WriteLine($"\nАрифметические операции:");
-        Console.WriteLine($"angle2 + angle3 = {angle2 + angle3}");
-        Console.WriteLine($"angle1 * 2 = {angle1 * 2}");
-        Console.WriteLine($"1.5 + angle2 = {1.5 + angle2}");
-        Console.WriteLine($"angle3 / 2 = {angle3 / 2}");
-        
-        // Тестирование AngleRange
-        Console.WriteLine("\n--- Тестирование AngleRange ---");
-        AngleRange range1 = new AngleRange(0, Math.PI);
-        AngleRange range2 = new AngleRange(45, 135, false);
-        AngleRange range3 = new AngleRange(270, 90, false);
-        
-        Console.WriteLine($"range1: {range1} | repr: {range1.ToReprString()}");
-        Console.WriteLine($"range2: {range2}");
-        Console.WriteLine($"range3: {range3}");
-        Console.WriteLine($"Длина range1: {range1.Length:0.00} rad");
-        
-        // Принадлежность
-        Console.WriteLine($"\nПроверка принадлежности:");
-        Angle testAngle = new Angle(60, false);
-        Console.WriteLine($"Угол 60° в range2: {range2.Contains(testAngle)}");
-        Console.WriteLine($"Угол 60° в range2 (оператор in заменён на Contains): {range2.Contains(testAngle)}");
-        Console.WriteLine($"range2 в range1: {range1.Contains(range2)}");
-        
-        // Сравнение промежутков
-        Console.WriteLine($"\nСравнение промежутков:");
-        Console.WriteLine($"range1 == range2: {range1 == range2}");
-        Console.WriteLine($"range1 > range2: {range1 > range2}");
-        
-        // Операции с промежутками
-        Console.WriteLine($"\nОперации с промежутками:");
-        var union = AngleRange.Union(range1, range2);
-        Console.WriteLine($"Объединение range1 и range2: {string.Join(" + ", union)}");
-        
-        var difference = AngleRange.Difference(range1, range2);
-        Console.WriteLine($"Разность range1 и range2: {string.Join(" - ", difference)}");
-        
-        Console.WriteLine("\n=== Демонстрация завершена ===");
-    }
-}
+            }
+        }
