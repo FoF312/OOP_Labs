@@ -1,348 +1,299 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿
+// --- Лабораторная работа 4: события / валидация ---
 
-public class Angle
+// Интерфейс обработчика событий (generic)
+public interface IEventHandler<TEventArgs>
 {
-    private double radians; // raw stored radians (may be outside [0,2π))
-    private const double TwoPi = 2 * Math.PI;
-    private const double Eps = 1e-9;
-
-    public Angle(double value = 0, bool isRadians = true, bool normalize = true)
-    {
-        if (isRadians)
-            radians = normalize ? Normalize(value) : value;
-        else
-            radians = normalize ? Normalize(DegreesToRadians(value)) : DegreesToRadians(value);
-    }
-
-    // Raw radians (как сохранено)
-    public double RawRadians => radians;
-
-    // Нормализованное значение в [0, 2π)
-    public double NormalizedRadians => Normalize(radians);
-
-    public double Radians
-    {
-        get => radians;
-        set => radians = value;
-    }
-
-    public double Degrees
-    {
-        get => RadiansToDegrees(radians);
-        set => radians = DegreesToRadians(value);
-    }
-
-    // Нормализация вспомогательная
-    private double Normalize(double rad)
-    {
-        double result = rad % TwoPi;
-        if (result < 0)
-            result += TwoPi;
-        return result;
-    }
-
-    private double DegreesToRadians(double deg) => deg * Math.PI / 180.0;
-    private double RadiansToDegrees(double rad) => rad * 180.0 / Math.PI;
-
-    public float ToFloat() => (float)radians;
-    public int ToInt() => (int)Math.Round(radians);
-
-    // ToString показывает фактическое значение.
-    public override string ToString() => $"{Degrees:0.0}°";
-
-    public string ToString(string format) => format.ToLower() switch
-    {
-        "rad" or "radians" => $"{radians:0.00} rad",
-        "deg" or "degrees" => $"{Degrees:0.0}°",
-        _ => ToString()
-    };
-
-    public string ToReprString() =>
-        $"Angle(raw_radians={radians:0.0000}, normalized={NormalizedRadians:0.0000}, degrees={Degrees:0.00}°)";
-
-    // Equals сравнивает по нормализованному значению (углы эквивалентны по модулю 2π)
-    public override bool Equals(object? obj) =>
-        obj is Angle other && Math.Abs(NormalizedRadians - other.NormalizedRadians) < Eps;
-
-    public override int GetHashCode() => NormalizedRadians.GetHashCode();
-
-    public static bool operator ==(Angle? a, Angle? b) =>
-        ReferenceEquals(a, b) || (a is not null && a.Equals(b));
-    public static bool operator !=(Angle? a, Angle? b) => !(a == b);
-    public static bool operator <(Angle a, Angle b) => a.NormalizedRadians < b.NormalizedRadians;
-    public static bool operator >(Angle a, Angle b) => a.NormalizedRadians > b.NormalizedRadians;
-    public static bool operator <=(Angle a, Angle b) => a.NormalizedRadians <= b.NormalizedRadians;
-    public static bool operator >=(Angle a, Angle b) => a.NormalizedRadians >= b.NormalizedRadians;
-
-    // Арифметика — сохраняем "сырые" суммы/произведения
-    public static Angle operator +(Angle a, Angle b) => new Angle(a.radians + b.radians, true, false);
-    public static Angle operator +(Angle a, double b) => new Angle(a.radians + b, true, false);
-    public static Angle operator +(Angle a, int b) => new Angle(a.radians + b, true, false);
-    public static Angle operator +(double a, Angle b) => new Angle(a + b.radians, true, false);
-    public static Angle operator +(int a, Angle b) => new Angle(a + b.radians, true, false);
-
-    public static Angle operator -(Angle a, Angle b) => new Angle(a.radians - b.radians, true, false);
-    public static Angle operator -(Angle a, double b) => new Angle(a.radians - b, true, false);
-    public static Angle operator -(Angle a, int b) => new Angle(a.radians - b, true, false);
-
-    public static Angle operator *(Angle a, double num) => new Angle(a.radians * num, true, false);
-    public static Angle operator *(Angle a, int num) => new Angle(a.radians * num, true, false);
-    public static Angle operator *(double num, Angle a) => new Angle(a.radians * num, true, false);
-    public static Angle operator *(int num, Angle a) => new Angle(a.radians * num, true, false);
-
-    public static Angle operator /(Angle a, double num) => new Angle(a.radians / num, true, false);
-    public static Angle operator /(Angle a, int num) => new Angle(a.radians / num, true, false);
-
-    public static explicit operator float(Angle angle) => angle.ToFloat();
-    public static explicit operator int(Angle angle) => angle.ToInt();
-    public static explicit operator double(Angle angle) => angle.radians;
+    void Handle(object sender, TEventArgs args);
 }
 
-public class AngleRange
+// Класс Event<TEventArgs> — хранит подписчиков и умеет оповещать их.
+// Поддерживаются операции += и -= (через перегрузку операторов + и -).
+public class Event<TEventArgs>
 {
-    public Angle Start { get; }
-    public Angle End { get; }
-    public bool IncludeStart { get; }
-    public bool IncludeEnd { get; }
+    private readonly List<IEventHandler<TEventArgs>> _handlers = new();
 
-    private const double TwoPi = 2 * Math.PI;
-    private const double Eps = 1e-9;
-
-    public AngleRange(Angle start, Angle end, bool includeStart = true, bool includeEnd = true)
+    // добавление подписчика (можно использовать instance += handler)
+    public static Event<TEventArgs> operator +(Event<TEventArgs> ev, IEventHandler<TEventArgs> handler)
     {
-        Start = start;
-        End = end;
-        IncludeStart = includeStart;
-        IncludeEnd = includeEnd;
+        if (ev == null) throw new ArgumentNullException(nameof(ev));
+        if (handler != null) ev._handlers.Add(handler);
+        return ev;
     }
 
-    public AngleRange(double start, double end, bool isRadians = true,
-                     bool includeStart = true, bool includeEnd = true)
-        : this(new Angle(start, isRadians, false), new Angle(end, isRadians, false), includeStart, includeEnd)
+    // удаление подписчика (можно использовать instance -= handler)
+    public static Event<TEventArgs> operator -(Event<TEventArgs> ev, IEventHandler<TEventArgs> handler)
     {
+        if (ev == null) throw new ArgumentNullException(nameof(ev));
+        if (handler != null) ev._handlers.Remove(handler);
+        return ev;
     }
 
-    // Длина промежутка вдоль положительного направления от Start до End.
-    public double GetLength()
+    // вызов события — оповестить всех подписчиков (в порядке добавления)
+    public void Invoke(object sender, TEventArgs args)
     {
-        double delta = End.RawRadians - Start.RawRadians;
-        // Подтягиваем вверх, чтобы delta >= 0, но не уменьшаем (если End выше Start — оставляем)
-        while (delta < 0) delta += TwoPi;
-        return delta;
-    }
-
-    // Синоним‑свойство для удобства (используется в форматировании/фильтрации)
-    public double Length => GetLength();
-
-    // Проверка принадлежности одного угла к промежутку (учитываем \pm 2π сдвиги).
-    public bool Contains(Angle angle)
-    {
-        double s = Start.RawRadians;
-        double e = s + GetLength(); // эффективный правый конец в сырой шкале (>= s)
-        double x = angle.RawRadians;
-
-        // ищем целое m такое, что x + m*2π ∈ [s, e]
-        double mMin = Math.Ceiling((s - x - Eps) / TwoPi);
-        double mMax = Math.Floor((e - x + Eps) / TwoPi);
-        if (mMin > mMax) return false;
-
-        // возьмём m = mMin как кандидат
-        double sx = x + mMin * TwoPi;
-        if (Math.Abs(sx - s) < Eps) return IncludeStart;           // попадает ровно в левую границу
-        if (Math.Abs(sx - e) < Eps) return IncludeEnd;             // ровно в правую границу
-        if (sx > s + Eps && sx < e - Eps) return true;             // строго внутри
-        // если подходят другие m (в диапазоне), тогда обязательно внутри
-        if (mMax > mMin) return true;
-        return false;
-    }
-
-    // Проверка принадлежности другого диапазона (ищем сдвиг m*2π, при котором другой полностью внутри)
-    public bool Contains(AngleRange? other)
-    {
-        if (other is null) return false;
-
-        double s = this.Start.RawRadians;
-        double e = s + this.GetLength();
-        double os = other.Start.RawRadians;
-        double oe = os + other.GetLength();
-
-        // нужно найти m такое, что s <= os + m*2π  и  oe + m*2π <= e
-        double mMin = Math.Ceiling((s - os - Eps) / TwoPi);
-        double mMax = Math.Floor((e - oe + Eps) / TwoPi);
-        if (mMin > mMax) return false;
-
-        // проверим граничные включения для выбранного m (берём m = mMin)
-        double shiftedStart = os + mMin * TwoPi;
-        double shiftedEnd = oe + mMin * TwoPi;
-
-        // если левый совпадает с s — проверяем IncludeStart обеих
-        if (Math.Abs(shiftedStart - s) < Eps && !(this.IncludeStart && other.IncludeStart)) return false;
-        // если правый совпадает с e — проверяем IncludeEnd обеих
-        if (Math.Abs(shiftedEnd - e) < Eps && !(this.IncludeEnd && other.IncludeEnd)) return false;
-
-        // если оба границы терпимы — содержится
-        if (shiftedStart > s + Eps && shiftedEnd < e - Eps) return true;
-        // если равен по длине полностью — проверяем включения обоих краёв
-        if (Math.Abs(shiftedStart - s) < Eps && Math.Abs(shiftedEnd - e) < Eps)
-            return this.IncludeStart == other.IncludeStart && this.IncludeEnd == other.IncludeEnd;
-
-        // остальные случаи: если попали сюда, то mMin<=mMax и нет явных нарушений — считаем, что содержится
-        return true;
-    }
-
-    private bool Touches(AngleRange other)
-    {
-        // Проверяем, совпадают ли границы с учётом сдвигов на кратные 2π
-        bool EqMod(double a, double b)
+        var snapshot = _handlers.ToArray();
+        foreach (var h in snapshot)
         {
-            double k = Math.Round((a - b) / TwoPi);
-            return Math.Abs(a - (b + k * TwoPi)) < Eps;
+            try { h.Handle(sender, args); }
+            catch { /* подписчики не должны рвать цепочку */ }
         }
-
-        if (EqMod(this.End.RawRadians, other.Start.RawRadians)) return true;
-        if (EqMod(this.Start.RawRadians, other.End.RawRadians)) return true;
-        return false;
     }
 
-    // Чёткие строковые представления с явными числовыми значениями (для удобной проверки)
-    public override string ToString()
+    // Явные методы для управления подписками (альтернатива +=/-=)
+    public void Add(IEventHandler<TEventArgs> handler) => _handlers.Add(handler);
+    public void Remove(IEventHandler<TEventArgs> handler) => _handlers.Remove(handler);
+}
+
+// EventArgs-подобные классы
+public class PropertyChangedEventArgs
+{
+    public string PropertyName { get; }
+    public PropertyChangedEventArgs(string propertyName) => PropertyName = propertyName;
+}
+
+public class PropertyChangingEventArgs
+{
+    public string PropertyName { get; }
+    public object? OldValue { get; }
+    public object? NewValue { get; }
+    // Флаг, разрешающий/отменяющий изменение (валидатор может выставить false)
+    public bool CanChange { get; set; } = true;
+
+    public PropertyChangingEventArgs(string propertyName, object? oldValue, object? newValue)
     {
-        char startChar = IncludeStart ? '[' : '(';
-        char endChar = IncludeEnd ? ']' : ')';
-        // Показываем сырые радианы и градусы — удобно для тестов
-        return $"{startChar}{Start.ToString("rad")} ({Start.ToString("deg")}), {End.ToString("rad")} ({End.ToString("deg")}){endChar}";
+        PropertyName = propertyName;
+        OldValue = oldValue;
+        NewValue = newValue;
     }
+}
 
-    public string ToReprString()
+// Примеры обработчиков: печать изменений после/до и валидатор до изменения
+
+// Выводит в консоль уведомления о изменённом свойстве (PropertyChanged)
+public class ConsolePropertyChangedHandler : IEventHandler<PropertyChangedEventArgs>
+{
+    public void Handle(object sender, PropertyChangedEventArgs args)
     {
-        return $"AngleRange(Start={Start.ToReprString()}, End={End.ToReprString()}, " +
-               $"IncludeStart={IncludeStart}, IncludeEnd={IncludeEnd}, Length={GetLength():0.0000})";
+        Console.WriteLine($"[CHANGED] {sender.GetType().Name}.{args.PropertyName} изменено.");
     }
+}
 
-    // Возвращает объединение двух диапазонов как список: один элемент при перекрытии/касании, иначе два (отсортированных).
-    public static List<AngleRange> Union(AngleRange a, AngleRange b)
+// Выводит в консоль уведомления о начале изменения (PropertyChanging)
+public class ConsolePropertyChangingHandler : IEventHandler<PropertyChangingEventArgs>
+{
+    public void Handle(object sender, PropertyChangingEventArgs args)
     {
-        if (a is null || b is null) return new List<AngleRange>();
+        Console.WriteLine($"[CHANGING] {sender.GetType().Name}.{args.PropertyName}: {args.OldValue} -> {args.NewValue}");
+    }
+}
 
-        // Если один содержит другой — возвращаем контейнер
-        if (a.Contains(b)) return new List<AngleRange> { a };
-        if (b.Contains(a)) return new List<AngleRange> { b };
+// Валидатор для свойств (можно настраивать правила). Возвращает CanChange=false при нарушениях.
+public class PropertyChangeValidator : IEventHandler<PropertyChangingEventArgs>
+{
+    public void Handle(object sender, PropertyChangingEventArgs args)
+    {
+        var name = args.PropertyName;
+        var newVal = args.NewValue;
 
-        double s1 = a.Start.RawRadians;
-        double e1 = s1 + a.GetLength();
-        double s2 = b.Start.RawRadians;
-        double e2 = s2 + b.GetLength();
-
-        // Попытаемся сдвинуть второй диапазон на ближайший кратный 2π, чтобы проверить перекрытие/касание.
-        int mCenter = (int)Math.Round((s1 - s2) / TwoPi);
-
-        for (int dm = -1; dm <= 1; dm++)
+        // Age: целое >= 0
+        if (name.IndexOf("Age", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            int m = mCenter + dm;
-            double s2m = s2 + m * TwoPi;
-            double e2m = e2 + m * TwoPi;
-
-            // Проверяем, не являются ли интервалы раздельными (с зазором).
-            if (!(e1 < s2m - Eps || e2m < s1 - Eps))
+            if (newVal == null || !int.TryParse(newVal.ToString(), out int v) || v < 0)
             {
-                double ns = Math.Min(s1, s2m);
-                double ne = Math.Max(e1, e2m);
-
-                bool nIncludeStart;
-                if (Math.Abs(ns - s1) < Eps && Math.Abs(ns - s2m) < Eps)
-                    nIncludeStart = a.IncludeStart || b.IncludeStart;
-                else if (Math.Abs(ns - s1) < Eps)
-                    nIncludeStart = a.IncludeStart;
-                else
-                    nIncludeStart = b.IncludeStart;
-
-                bool nIncludeEnd;
-                if (Math.Abs(ne - e1) < Eps && Math.Abs(ne - e2m) < Eps)
-                    nIncludeEnd = a.IncludeEnd || b.IncludeEnd;
-                else if (Math.Abs(ne - e1) < Eps)
-                    nIncludeEnd = a.IncludeEnd;
-                else
-                    nIncludeEnd = b.IncludeEnd;
-
-                var merged = new AngleRange(new Angle(ns, true, false), new Angle(ne, true, false), nIncludeStart, nIncludeEnd);
-                return new List<AngleRange> { merged };
+                args.CanChange = false;
+                Console.WriteLine($"[VALIDATOR] Отклонено: {name} должно быть неотрицательным целым.");
+                return;
             }
         }
 
-        // Раздельные интервалы: возвращаем оба в порядке по эффективному положению (связываем b к ближайшему mCenter для сравнения порядка).
-        double s2mFinal = s2 + mCenter * TwoPi;
+        // Email: должно содержать '@'
+        if (name.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            if (newVal == null || !newVal.ToString()!.Contains('@'))
+            {
+                args.CanChange = false;
+                Console.WriteLine($"[VALIDATOR] Отклонено: {name} должен содержать '@'.");
+                return;
+            }
+        }
 
-        if (s1 <= s2mFinal)
-            return new List<AngleRange> { a, b };
-        else
-            return new List<AngleRange> { b, a };
+        // Temperature: допустимый диапазон (-100..+200)
+        if (name.IndexOf("Temperature", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            if (newVal == null || !double.TryParse(newVal.ToString(), out double t) || t < -100 || t > 200)
+            {
+                args.CanChange = false;
+                Console.WriteLine($"[VALIDATOR] Отклонено: {name} вне диапазона [-100;200].");
+                return;
+            }
+        }
+
+        // По умолчанию — разрешаем изменение
     }
 }
 
-class Program
+/*
+  Примеры классов с минимум 3 полями, которые посылают событие PropertyChanging перед изменением,
+  и PropertyChanged после успешного изменения.
+*/
+
+// Пример 1: профиль пользователя
+public class UserProfile
 {
-    static void Main()
+    // События — поля, чтобы "+=" / "-=" работали на экземпляре
+    public Event<PropertyChangingEventArgs> PropertyChanging = new Event<PropertyChangingEventArgs>();
+    public Event<PropertyChangedEventArgs> PropertyChanged = new Event<PropertyChangedEventArgs>();
+
+    private string _username = "";
+    private string _email = "";
+    private int _age = 0;
+
+    public string Username
     {
-        // Короткий, читабельный вывод: только то, что нужно.
-        // Помощники для компактного отображения
-        string Deg(Angle a) => $"{a.Degrees:0.##}°";
-        string Rad(Angle a) => $"{a.RawRadians:0.###} rad";
-        string AngleShort(Angle a, bool showDegreesOnly = false) => showDegreesOnly ? Deg(a) : $"{Deg(a)} / {Rad(a)}";
-        string RangeShort(AngleRange r, bool showDegreesOnly = false)
-            => showDegreesOnly
-               ? $"{(r.IncludeStart ? "[" : "(")}{Deg(r.Start)} .. {Deg(r.End)}{(r.IncludeEnd ? "]" : ")")}"
-               : $"{(r.IncludeStart ? "[" : "(")}{Rad(r.Start)} .. {Rad(r.End)}{(r.IncludeEnd ? "]" : ")")}  ({r.Length:0.###} rad)";
+        get => _username;
+        set => SetProperty(nameof(Username), _username, value,
+            v => _username = (string)v!);
+    }
 
-        Console.WriteLine("=== КРАТКАЯ ДЕМО-ВЫВОД ===\n");
+    public string Email
+    {
+        get => _email;
+        set => SetProperty(nameof(Email), _email, value,
+            v => _email = (string)v!);
+    }
 
-        // Создаём объекты (как раньше)
-        Angle angle1 = new Angle(Math.PI);          // radians
-        Angle angle2 = new Angle(90, false);        // degrees
-        Angle angle3 = new Angle(45, false);        // degrees
+    public int Age
+    {
+        get => _age;
+        set => SetProperty(nameof(Age), _age, value,
+            v => _age = (int)v!);
+    }
 
-        AngleRange range1 = new AngleRange(0, Math.PI);          // numeric radians (raw)
-        AngleRange range2 = new AngleRange(45, 135, false);      // degrees input -> show degrees
-        AngleRange range3 = new AngleRange(270, 90, false);      // wrap, degrees input
+    // Общая логика установки свойства с событиями
+    private void SetProperty(string propertyName, object? oldValue, object? newValue, Action<object?> setter)
+    {
+        var before = new PropertyChangingEventArgs(propertyName, oldValue, newValue);
+        PropertyChanging.Invoke(this, before);
 
-        Console.WriteLine("-- Углы --");
-        Console.WriteLine($"angle1: {AngleShort(angle1)}");
-        Console.WriteLine($"angle2: {AngleShort(angle2, showDegreesOnly: true)}"); // был задан в градусах
-        Console.WriteLine($"angle3: {AngleShort(angle3, showDegreesOnly: true)}");
-        Console.WriteLine();
-
-        Console.WriteLine("-- Сравнения (показываем значения) --");
-        Console.WriteLine($"{AngleShort(angle1)} == {AngleShort(angle2, true)} -> {angle1 == angle2}");
-        Console.WriteLine($"{AngleShort(angle2, true)} <  {AngleShort(angle3, true)} -> {angle2 < angle3}");
-        Console.WriteLine();
-
-        Console.WriteLine("-- Промежутки (компактно) --");
-        Console.WriteLine($"range1: {RangeShort(range1)}");
-        Console.WriteLine($"range2: {RangeShort(range2, showDegreesOnly: true)}");
-        Console.WriteLine($"range3: {RangeShort(range3, showDegreesOnly: true)}");
-        Console.WriteLine();
-
-        Console.WriteLine("-- Принадлежность (компактно) --");
-        Angle testAngle = new Angle(60, false); // 60°
-        Console.WriteLine($"{AngleShort(testAngle, true)} ∈ range2? -> {range2.Contains(testAngle)}");
-        Console.WriteLine($"{RangeShort(range2, true)} ⊂ {RangeShort(range1)}? -> {range1.Contains(range2)}");
-        Console.WriteLine();
-
-        Console.WriteLine("-- Пример вложенности (показываем СЫРЫЕ значения для наглядности) --");
-        AngleRange big = new AngleRange(Math.PI / 2.0, 6 * Math.PI); // [π/2 ; 6π] 
-        AngleRange small = new AngleRange(Math.PI / 3.0, 3 * Math.PI, true, false, false); // (π/3 ; 3π)
-        // Показываем raw радианы + удобные градусы где уместно
-        Console.WriteLine($"big:   {RangeShort(big)}");
-        Console.WriteLine($"small: {RangeShort(small)}");
-        Console.WriteLine($"small ⊂ big? -> {big.Contains(small)}");
-        Console.WriteLine();
-
-        Console.WriteLine("-- Объединение / Разность (компактно) --");
-        var u = AngleRange.Union(range1, range2);
-        Console.WriteLine($"Объединение {RangeShort(range1, showDegreesOnly: true)} и {RangeShort(range2, showDegreesOnly: true)}:");
-                if (u.Count == 0) Console.WriteLine("  (пусто)");
-                else foreach (var item in u) Console.WriteLine($"  - {RangeShort(item, showDegreesOnly: true)}");
-        
-            }
+        if (!before.CanChange)
+        {
+            Console.WriteLine($"[INFO] Изменение {propertyName} отменено валидатором.");
+            return;
         }
+
+        setter(newValue);
+
+        var after = new PropertyChangedEventArgs(propertyName);
+        PropertyChanged.Invoke(this, after);
+    }
+}
+
+// Пример 2: сенсорное устройство с тремя измерениями
+public class SensorDevice
+{
+    // События — поля, чтобы "+=" / "-=" работали на экземпляре
+    public Event<PropertyChangingEventArgs> PropertyChanging = new Event<PropertyChangingEventArgs>();
+    public Event<PropertyChangedEventArgs> PropertyChanged = new Event<PropertyChangedEventArgs>();
+
+    private double _temperature;
+    private double _pressure;
+    private string _status = "OK";
+
+    public double Temperature
+    {
+        get => _temperature;
+        set => SetProperty(nameof(Temperature), _temperature, value, v => _temperature = (double)v!);
+    }
+
+    public double Pressure
+    {
+        get => _pressure;
+        set => SetProperty(nameof(Pressure), _pressure, value, v => _pressure = (double)v!);
+    }
+
+    public string Status
+    {
+        get => _status;
+        set => SetProperty(nameof(Status), _status, value, v => _status = (string)v!);
+    }
+
+    private void SetProperty(string propertyName, object? oldValue, object? newValue, Action<object?> setter)
+    {
+        var before = new PropertyChangingEventArgs(propertyName, oldValue, newValue);
+        PropertyChanging.Invoke(this, before);
+
+        if (!before.CanChange)
+        {
+            Console.WriteLine($"[INFO] Изменение {propertyName} отменено валидатором.");
+            return;
+        }
+
+        setter(newValue);
+        PropertyChanged.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+// Демонстрация Lab4 — выводит процесс валидации, отмен и успешных изменений
+static partial class Program // partial чтобы не мешать основному классу (если он уже объявлен)
+{
+    static void DemoEvents()
+    {
+        Console.WriteLine("\n=== Лабораторная 4: события и валидация (демо) ===\n");
+
+        // Создаём обработчики
+        var changedHandler = new ConsolePropertyChangedHandler();
+        var changingHandler = new ConsolePropertyChangingHandler();
+        var validator = new PropertyChangeValidator();
+
+        // UserProfile demo
+        var user = new UserProfile();
+        // Подписываемся: сначала валидатор (before), затем печать before и after
+        user.PropertyChanging += validator;
+        user.PropertyChanging += changingHandler;
+        user.PropertyChanged += changedHandler;
+
+        Console.WriteLine("UserProfile: пытаемся установить корректные значения:");
+        user.Username = "alice";
+        user.Email = "alice@example.com";
+        user.Age = 30;
+
+        Console.WriteLine("\nUserProfile: пытаемся установить некорректные значения:");
+        user.Age = -5;                     // валидатор должен запретить
+        user.Email = "invalid-email";      // валидатор должен запретить
+
+        Console.WriteLine("\n---\nSensorDevice demo (температура/давление/status):");
+        var sensor = new SensorDevice();
+        sensor.PropertyChanging += validator;     // одинаковый валидатор применим к Temperature
+        sensor.PropertyChanged += changedHandler;
+        sensor.PropertyChanging += changingHandler;
+
+        Console.WriteLine("Установка допустимой температуры (25.5):");
+        sensor.Temperature = 25.5;
+
+        Console.WriteLine("Попытка установить недопустимой температуры (1000):");
+        sensor.Temperature = 1000; // должен запретить
+
+        Console.WriteLine("Установка давления и статуса:");
+        sensor.Pressure = 1.2;
+        sensor.Status = "ALARM";
+
+        Console.WriteLine("\n=== Демонстрация Lab4 завершена ===\n");
+    }
+}
+
+static partial class Program
+{
+    static void Main(string[] args)
+    {
+        // call the demo from this simple launcher
+        DemoEvents();
+
+        // keep console open in interactive runs
+        Console.WriteLine("Press ENTER to exit...");
+        Console.ReadLine();
+    }
+}
+
+// Подключаем вызов DemoEvents() в основной DemoAll, если он там есть
+// Если нужно — добавлю вызов DemoEvents() в DemoAll() в другом месте файла.
