@@ -4,7 +4,7 @@ using System.Linq;
 
 public class Angle
 {
-    private double radians; // raw stored radians (may be outside [0,2π))
+    private double radians; // сырые радианы (могут быть вне интервала [0, 2π))
     private const double TwoPi = 2 * Math.PI;
     private const double Eps = 1e-9;
 
@@ -159,37 +159,60 @@ public class AngleRange
     }
 
     // Проверка принадлежности другого диапазона (ищем сдвиг m*2π, при котором другой полностью внутри)
-    public bool Contains(AngleRange? other)
+        public bool Contains(AngleRange? other)
     {
         if (other is null) return false;
+            double s = Start.NormalizedRadians;
+            double e = End.NormalizedRadians;
+            double os = other.Start.NormalizedRadians;
+            double oe = other.End.NormalizedRadians;
 
-        double s = this.Start.RawRadians;
-        double e = s + this.GetLength();
-        double os = other.Start.RawRadians;
-        double oe = os + other.GetLength();
+            // Lengths along positive direction in [0, 2π)
+            double len = (e - s + TwoPi) % TwoPi;
+            double olen = (oe - os + TwoPi) % TwoPi;
 
-        // нужно найти m такое, что s <= os + m*2π  и  oe + m*2π <= e
-        double mMin = Math.Ceiling((s - os - Eps) / TwoPi);
-        double mMax = Math.Floor((e - oe + Eps) / TwoPi);
-        if (mMin > mMax) return false;
+            // Helper: check whether point p (normalized) belongs to this arc
+            bool PointInArc(double p, bool pIsStart, bool pIsEnd, bool pInclude)
+            {
+                // endpoint equality with tolerance
+                if (Math.Abs(p - s) < Eps)
+                    return IncludeStart && pInclude;
+                if (Math.Abs(p - e) < Eps)
+                    return IncludeEnd && pInclude;
 
-        // проверим граничные включения для выбранного m (берём m = mMin)
-        double shiftedStart = os + mMin * TwoPi;
-        double shiftedEnd = oe + mMin * TwoPi;
+                if (len <= Eps)
+                    return false; // zero-length arc contains nothing
 
-        // если левый совпадает с s — проверяем IncludeStart обеих
-        if (Math.Abs(shiftedStart - s) < Eps && !(this.IncludeStart && other.IncludeStart)) return false;
-        // если правый совпадает с e — проверяем IncludeEnd обеих
-        if (Math.Abs(shiftedEnd - e) < Eps && !(this.IncludeEnd && other.IncludeEnd)) return false;
+                if (s < e)
+                {
+                    return p > s + Eps && p < e - Eps;
+                }
+                else
+                {
+                    // Wraps around: [s, 2π) ∪ [0, e]
+                    if (p > s + Eps || p < e - Eps) return true;
+                    return false;
+                }
+            }
 
-        // если оба границы терпимы — содержится
-        if (shiftedStart > s + Eps && shiftedEnd < e - Eps) return true;
-        // если равен по длине полностью — проверяем включения обоих краёв
-        if (Math.Abs(shiftedStart - s) < Eps && Math.Abs(shiftedEnd - e) < Eps)
-            return this.IncludeStart == other.IncludeStart && this.IncludeEnd == other.IncludeEnd;
+            // If the other arc is longer than this one, it can't be contained.
+            if (olen - len > Eps) return false;
 
-        // остальные случаи: если попали сюда, то mMin<=mMax и нет явных нарушений — считаем, что содержится
-        return true;
+            // Check that both endpoints of the other arc are within this arc
+            // For endpoints we must respect inclusive flags as well.
+            bool startIn = PointInArc(os, true, false, other.IncludeStart);
+            bool endIn = PointInArc(oe, false, true, other.IncludeEnd);
+            if (!startIn || !endIn) return false;
+
+            // If their lengths are equal (within eps) then check inclusions of boundaries for exact match
+            if (Math.Abs(len - olen) < Eps)
+            {
+                // If starts coincide, other's included endpoint must be allowed by this
+                if (Math.Abs(os - s) < Eps && other.IncludeStart && !IncludeStart) return false;
+                if (Math.Abs(oe - e) < Eps && other.IncludeEnd && !IncludeEnd) return false;
+            }
+
+            return true;
     }
 
     private bool Touches(AngleRange other)
@@ -298,13 +321,13 @@ class Program
         Console.WriteLine("=== КРАТКАЯ ДЕМО-ВЫВОД ===\n");
 
         // Создаём объекты (как раньше)
-        Angle angle1 = new Angle(Math.PI);          // radians
-        Angle angle2 = new Angle(90, false);        // degrees
-        Angle angle3 = new Angle(45, false);        // degrees
+        Angle angle1 = new Angle(Math.PI);          // в радианах
+        Angle angle2 = new Angle(90, false);        // в градусах
+        Angle angle3 = new Angle(45, false);        // в градусах
 
-        AngleRange range1 = new AngleRange(0, Math.PI);          // numeric radians (raw)
-        AngleRange range2 = new AngleRange(45, 135, false);      // degrees input -> show degrees
-        AngleRange range3 = new AngleRange(270, 90, false);      // wrap, degrees input
+        AngleRange range1 = new AngleRange(0, Math.PI);          // численные радианы (сырые)
+        AngleRange range2 = new AngleRange(45, 135, false);      // вход в градусах — отображаем в градусах
+        AngleRange range3 = new AngleRange(270, 90, false);      // оборачиваемый диапазон (wrap), вход в градусах
 
         Console.WriteLine("-- Углы --");
         Console.WriteLine($"angle1: {AngleShort(angle1)}");
@@ -329,13 +352,22 @@ class Program
         Console.WriteLine($"{RangeShort(range2, true)} ⊂ {RangeShort(range1)}? -> {range1.Contains(range2)}");
         Console.WriteLine();
 
-        Console.WriteLine("-- Пример вложенности (показываем СЫРЫЕ значения для наглядности) --");
+        Console.WriteLine("-- Пример вложенности --");
         AngleRange big = new AngleRange(Math.PI / 2.0, 6 * Math.PI); // [π/2 ; 6π] 
         AngleRange small = new AngleRange(Math.PI / 3.0, 3 * Math.PI, true, false, false); // (π/3 ; 3π)
         // Показываем raw радианы + удобные градусы где уместно
         Console.WriteLine($"big:   {RangeShort(big)}");
         Console.WriteLine($"small: {RangeShort(small)}");
         Console.WriteLine($"small ⊂ big? -> {big.Contains(small)}");
+        Console.WriteLine();
+
+        // Похожий "сырой" пример, где вложенность корректна (малый диапазон полностью внутри большого)
+        AngleRange big2 = new AngleRange(Math.PI / 2.0, 6 * Math.PI); // [π/2 ; 6π]
+        AngleRange small2 = new AngleRange(2.0, 4.0); // [2.0 ; 4.0] rad — внутри big2
+        Console.WriteLine("-- Другой сырой пример вложенности --");
+        Console.WriteLine($"big2:  {RangeShort(big2)}");
+        Console.WriteLine($"small2:{RangeShort(small2)}");
+        Console.WriteLine($"small2 ⊂ big2? -> {big2.Contains(small2)}");
         Console.WriteLine();
 
         Console.WriteLine("-- Объединение / Разность (компактно) --");
