@@ -1,0 +1,38 @@
+=== Virtual Keyboard Lab 6 ===
+
+--- Printing Characters ---
+a
+b
+c
+
+--- Testing Undo ---
+[Backspace]
+[Backspace]
+
+--- Testing Redo ---
+b
+
+--- Volume Control ---
+[Volume Increased +20%]
+[Volume Decreased -20%]
+
+--- Media Player ---
+[Media Player Launched]
+
+--- More Characters ---
+d
+
+--- Undo Actions ---
+[Backspace]
+[Media Player Closed]
+
+=== Loaded Bindings from File ===
+Key: a -> Command: Print 'a'
+Key: b -> Command: Print 'b'
+Key: c -> Command: Print 'c'
+Key: d -> Command: Print 'd'
+Key: ctrl++ -> Command: Volume Up
+Key: ctrl+- -> Command: Volume Down
+Key: ctrl+p -> Command: Media Player
+
+--- Demonstration Complete ---
