@@ -1,0 +1,15 @@
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\bin\Release\net9.0\ConsoleApp1.exe
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\bin\Release\net9.0\ConsoleApp1.deps.json
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\bin\Release\net9.0\ConsoleApp1.runtimeconfig.json
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\bin\Release\net9.0\ConsoleApp1.dll
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\bin\Release\net9.0\ConsoleApp1.pdb
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.AssemblyInfoInputs.cache
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.AssemblyInfo.cs
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.csproj.CoreCompileInputs.cache
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.sourcelink.json
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.dll
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\refint\ConsoleApp1.dll
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.pdb
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ConsoleApp1.genruntimeconfig.cache
+C:\Users\vlad\Desktop\ASD_Labs\OOP_Labs\Lab1\ConsoleApp1\obj\Release\net9.0\ref\ConsoleApp1.dll
