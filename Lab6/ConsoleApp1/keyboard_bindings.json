@@ -1,1 +1,0 @@
-{"name":"KeyboardBindings","items":[{"key":"a","command":"Print \u0027a\u0027"},{"key":"b","command":"Print \u0027b\u0027"},{"key":"c","command":"Print \u0027c\u0027"},{"key":"d","command":"Print \u0027d\u0027"},{"key":"ctrl\u002B\u002B","command":"Volume Up"},{"key":"ctrl\u002B-","command":"Volume Down"},{"key":"ctrl\u002Bp","command":"Media Player"}]}
